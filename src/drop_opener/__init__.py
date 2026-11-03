@@ -3,7 +3,7 @@ import time
 
 import psutil
 
-from drop_opener.rlapi import PsyNet
+from drop_opener.rlapi import PsyNetConnection
 
 
 def get_rocket_league_process() -> psutil.Process:
@@ -40,7 +40,8 @@ async def main() -> None:
     cmdline = " ".join(process.cmdline())
     exchange_code = cmdline.split("-AUTH_PASSWORD=")[1].split(" ")[0]
 
-    psynet = await PsyNet.log_in_with_exchange_code(exchange_code)
+    psynet = await PsyNetConnection.log_in_with_exchange_code(exchange_code)
+    await asyncio.sleep(30)
 
 
 def _start():

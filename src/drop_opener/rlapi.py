@@ -4,12 +4,14 @@ Provides a wrapper around psynet.
 # please star https://github.com/dank/rlapi!
 
 import base64
+import contextlib
 import hashlib
 import hmac
 import json
 from dataclasses import dataclass
 
 import httpx2
+import httpx2.websockets
 import msgspec
 
 
@@ -38,15 +40,12 @@ def eos_authorization_header():
     return header
 
 
-class EOSTokenResponse(msgspec.Struct):
+class EOSPsyNetAuthentication(msgspec.Struct):
     access_token: str
     account_id: str
 
-
-@dataclass
-class PsyNet:
     @staticmethod
-    async def log_in_with_exchange_code(exchange_code: str) -> PsyNet:
+    async def from_exchange_code(exchange_code: str) -> EOSPsyNetAuthentication:
         async with httpx2.AsyncClient() as client:
             response = await client.post(
                 "https://api.epicgames.dev/epic/oauth/v2/token",
@@ -66,25 +65,36 @@ class PsyNet:
             )
 
         print(response.text)
-        eos = msgspec.json.decode(response.text, type=EOSTokenResponse)
-        return await PsyNet.log_in_with_eos(eos)
+        return msgspec.json.decode(response.text, type=EOSPsyNetAuthentication)
+
+
+class PsyNetConnectionAuthenticationResponse(msgspec.Struct):
+    Result: PsyNetConnectionAuthentication
+
+
+class PsyNetConnectionAuthentication(msgspec.Struct):
+    PerConURLv2: str
+    SessionID: str
+    PsyToken: str
 
     @staticmethod
-    async def log_in_with_eos(token: EOSTokenResponse) -> PsyNet:
+    async def from_eos_authentication(
+        eos: EOSPsyNetAuthentication,
+    ) -> PsyNetConnectionAuthentication:
         data = {
             "Platform": "Epic",
             "PlayerName": "",
-            "PlayerID": token.account_id,
+            "PlayerID": eos.account_id,
             "Language": "INT",
-            "AuthTicket": token.access_token,
+            "AuthTicket": eos.access_token,
             "BuildRegion": "",
             "FeatureSet": FEATURE_SET,
             "Device": "PC",
             "bSkipAuth": False,
             "bSetAsPrimaryAccount": True,
-            "EpicAuthTicket": token.access_token,
-            "EpicAccountID": token.account_id,
-            "LocalFirstPlayerID": f"Epic|{token.account_id}|0",
+            "EpicAuthTicket": eos.access_token,
+            "EpicAccountID": eos.account_id,
+            "LocalFirstPlayerID": f"Epic|{eos.account_id}|0",
         }
         data = json.dumps(data)
 
@@ -103,6 +113,42 @@ class PsyNet:
                 },
             )
 
-        print(response.status_code)
         print(response.text)
-        raise Exception
+        return msgspec.json.decode(
+            response.text, type=PsyNetConnectionAuthenticationResponse
+        ).Result
+
+
+@dataclass
+class PsyNetConnection:
+    _ctx: contextlib.AsyncExitStack
+    _client: httpx2.AsyncClient
+    _socket: httpx2.websockets.AsyncWebSocketSession
+
+    _idem = 0
+
+    @staticmethod
+    async def connect(auth: PsyNetConnectionAuthentication) -> PsyNetConnection:
+        ctx = contextlib.AsyncExitStack()
+        client = await ctx.enter_async_context(httpx2.AsyncClient())
+        socket = await ctx.enter_async_context(
+            client.websocket(
+                auth.PerConURLv2,
+                headers={
+                    "PsyToken": auth.PsyToken,
+                    "PsySessionID": auth.SessionID,
+                    "PsyBuildID": BUILD_ID,
+                    "PsyEnvironment": "Prod",
+                },
+            )
+        )
+
+        return PsyNetConnection(ctx, client, socket)
+
+    @staticmethod
+    async def log_in_with_exchange_code(exchange_code: str) -> PsyNetConnection:
+        return await PsyNetConnection.connect(
+            await PsyNetConnectionAuthentication.from_eos_authentication(
+                await EOSPsyNetAuthentication.from_exchange_code(exchange_code)
+            )
+        )
