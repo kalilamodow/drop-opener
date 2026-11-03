@@ -2,11 +2,7 @@ import time
 
 import psutil
 
-# build secret can only be retrieved automatically with static analysis which I'm too stupid to do. so I'll try to keep
-# these updated.
-BUILD_ID = "-1885667689"
-FEATURE_SET = "PrimeUpdate60_1"
-BUILD_SECRET = "76656a5b51ec57a13549eef732c8a8367638aa3a7989bade1f7e4e5f93d57625"
+from drop_opener.rlapi import PsyNet
 
 
 def get_rocket_league_process() -> psutil.Process:
@@ -40,4 +36,7 @@ def main() -> None:
     print("Launch rocket league, I will detect it once it's started.")
     process = get_rocket_league_process()
     process.terminate()
-    print("cmdline:", process.cmdline())
+    cmdline = " ".join(process.cmdline())
+    exchange_code = cmdline.split("-AUTH_PASSWORD=")[1].split(" ")[0]
+
+    psynet = PsyNet.log_in_with_exchange_code(exchange_code)

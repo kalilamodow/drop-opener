@@ -5,11 +5,18 @@ description = "opens rocket league drops"
 readme = "README.md"
 requires-python = ">=3.15"
 dependencies = [
+    "msgspec>=0.22.0",
     "psutil>=7.2.2",
+    "requests>=2.34.2",
+    "types-psutil>=7.2.2.20260906",
 ]
 
 [project.scripts]
 drop-opener = "drop_opener:main"
+
+[tool.pyrefly]
+interpreter-path = ".venv/bin/python"
+site-package-path = [".venv/lib/site-packages"]
 
 [build-system]
 requires = ["uv_build>=0.13.6,<0.14.0"]
