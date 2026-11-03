@@ -1,3 +1,4 @@
+import asyncio
 import time
 
 import psutil
@@ -31,7 +32,7 @@ def get_rocket_league_process() -> psutil.Process:
         time.sleep(0.1)
 
 
-def main() -> None:
+async def main() -> None:
     print("**** drop opener ****")
     print("Launch rocket league, I will detect it once it's started.")
     process = get_rocket_league_process()
@@ -39,4 +40,8 @@ def main() -> None:
     cmdline = " ".join(process.cmdline())
     exchange_code = cmdline.split("-AUTH_PASSWORD=")[1].split(" ")[0]
 
-    psynet = PsyNet.log_in_with_exchange_code(exchange_code)
+    psynet = await PsyNet.log_in_with_exchange_code(exchange_code)
+
+
+def _start():
+    asyncio.run(main())

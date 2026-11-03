@@ -7,9 +7,10 @@ import base64
 import hashlib
 import hmac
 import json
+from dataclasses import dataclass
 
+import httpx2
 import msgspec
-import requests
 
 
 def generate_psy_sig(body: str) -> str:
@@ -42,35 +43,34 @@ class EOSTokenResponse(msgspec.Struct):
     account_id: str
 
 
+@dataclass
 class PsyNet:
-    def __init__(self) -> None:
-        pass
-
     @staticmethod
-    def log_in_with_exchange_code(exchange_code: str) -> PsyNet:
-        response = requests.post(
-            "https://api.epicgames.dev/epic/oauth/v2/token",
-            data={
-                "grant_type": "exchange_code",
-                "scope": "basic_profile friends_list presence friends_management country openid",
-                "exchange_code": exchange_code,
-                "deployment_id": RL_EOS_DEPLOYMENT_ID,
-            },
-            headers={
-                # content type is auto set by requests i think
-                "Accept": "application/json",
-                "Authorization": eos_authorization_header(),
-                "User-Agent": "EOS-SDK/1.19.2.2-58776509 (Windows/10.0.26100.9549.64bit) Rocket League/261013.63066.530866",
-                "X-EOS-Version": "1.19.2.2-58776509",
-            },
-        )
+    async def log_in_with_exchange_code(exchange_code: str) -> PsyNet:
+        async with httpx2.AsyncClient() as client:
+            response = await client.post(
+                "https://api.epicgames.dev/epic/oauth/v2/token",
+                data={
+                    "grant_type": "exchange_code",
+                    "scope": "basic_profile friends_list presence friends_management country openid",
+                    "exchange_code": exchange_code,
+                    "deployment_id": RL_EOS_DEPLOYMENT_ID,
+                },
+                headers={
+                    # content type is auto set by requests i think
+                    "Accept": "application/json",
+                    "Authorization": eos_authorization_header(),
+                    "User-Agent": "EOS-SDK/1.19.2.2-58776509 (Windows/10.0.26100.9549.64bit) Rocket League/261013.63066.530866",
+                    "X-EOS-Version": "1.19.2.2-58776509",
+                },
+            )
 
         print(response.text)
         eos = msgspec.json.decode(response.text, type=EOSTokenResponse)
-        return PsyNet.log_in_with_eos(eos)
+        return await PsyNet.log_in_with_eos(eos)
 
     @staticmethod
-    def log_in_with_eos(token: EOSTokenResponse) -> PsyNet:
+    async def log_in_with_eos(token: EOSTokenResponse) -> PsyNet:
         data = {
             "Platform": "Epic",
             "PlayerName": "",
@@ -88,19 +88,20 @@ class PsyNet:
         }
         data = json.dumps(data)
 
-        response = requests.post(
-            "https://api.rlpp.psynet.gg/rpc/Auth/AuthPlayer/v2",
-            data=data,
-            headers={
-                "Content-Type": "application/x-www-form-urlencoded",  # idk either
-                "PsyBuildID": BUILD_ID,
-                "PsyRequestID": "PsyNetMessage_X_1",
-                "PsySig": generate_psy_sig(data),
-                "PsyEnvironment": "Prod",
-                "User-Agent": "RL Win/260602.75104.519749 gzip (x86_64-pc-win32) curl-7.67.0 Schannel",
-                "PsyBuildSecret": BUILD_SECRET,
-            },
-        )
+        async with httpx2.AsyncClient() as client:
+            response = await client.post(
+                "https://api.rlpp.psynet.gg/rpc/Auth/AuthPlayer/v2",
+                content=data,
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",  # idk either
+                    "PsyBuildID": BUILD_ID,
+                    "PsyRequestID": "PsyNetMessage_X_1",
+                    "PsySig": generate_psy_sig(data),
+                    "PsyEnvironment": "Prod",
+                    "User-Agent": "RL Win/260602.75104.519749 gzip (x86_64-pc-win32) curl-7.67.0 Schannel",
+                    "PsyBuildSecret": BUILD_SECRET,
+                },
+            )
 
         print(response.status_code)
         print(response.text)
