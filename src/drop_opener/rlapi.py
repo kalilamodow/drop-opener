@@ -105,7 +105,7 @@ class PsyNetConnectionAuthentication(msgspec.Struct):
                 headers={
                     "Content-Type": "application/x-www-form-urlencoded",  # idk either
                     "PsyBuildID": BUILD_ID,
-                    "PsyRequestID": "PsyNetMessage_X_1",
+                    "PsyRequestID": "PsyNetMessage_X_0",
                     "PsySig": generate_psy_sig(data),
                     "PsyEnvironment": "Prod",
                     "User-Agent": "RL Win/260602.75104.519749 gzip (x86_64-pc-win32) curl-7.67.0 Schannel",
@@ -125,7 +125,7 @@ class PsyNetConnection:
     _client: httpx2.AsyncClient
     _socket: httpx2.websockets.AsyncWebSocketSession
 
-    _idem = 0
+    _idem = 1  # the http request uses 0
 
     @staticmethod
     async def connect(auth: PsyNetConnectionAuthentication) -> PsyNetConnection:
