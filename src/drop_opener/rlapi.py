@@ -8,19 +8,12 @@ import contextlib
 import hashlib
 import hmac
 import json
+import time
 from dataclasses import dataclass
 
 import httpx2
 import httpx2.websockets
 import msgspec
-
-
-def generate_psy_sig(body: str) -> str:
-    PSY_KEY = b"c338bd36fb8c42b1a431d30add939fc7"
-    digest = hmac.new(PSY_KEY, f"-{body}".encode(), hashlib.sha256).digest()
-
-    return base64.b64encode(digest).decode("utf-8")
-
 
 # build secret can only be retrieved automatically with static analysis which I'm too stupid to do. so I'll try to keep
 # these updated.
@@ -125,10 +118,57 @@ class PsyNetConnection:
     _client: httpx2.AsyncClient
     _socket: httpx2.websockets.AsyncWebSocketSession
 
+    _conn_token: str
+    _session_id: str
+    _player_id: str
+
     _idem = 1  # the http request uses 0
 
+    async def close(self):
+        await self._ctx.aclose()
+
+    async def inventory(self):
+        response = msgspec.json.decode(
+            (
+                await self._send(
+                    "Products/GetPlayerProducts v2",
+                    json.dumps(
+                        {
+                            "PlayerID": self._player_id,
+                            "UpdatedTimestamp": round(time.time()),
+                        }
+                    ),
+                )
+            ).body,
+            type=PsyNetInventoryResponse,
+        )
+        print(response.Result)
+
+    async def _send(self, service: str, body: str) -> PsyNetWsResponse:
+        headers = {
+            "PsyService": service,
+            "PsyRequestId": f"PsyNetMessage_X_{self._idem}",
+            "PsyToken": self._conn_token,
+            "PsySessionID": self._session_id,
+            "PsySig": generate_psy_sig(body),
+            "PsyBuildID": BUILD_ID,
+            "User-Agent": "RL Win/250811.43331.492665 gzip",
+            "PsyEnvironment": "Prod",
+        }
+
+        headers_string = "\r\n".join(f"{k}: {v}" for (k, v) in headers.items())
+        message = f"{headers_string}\r\n\r\n{body}"
+        print(message)
+        await self._socket.send_text(message)
+        self._idem += 1
+
+        response = await self._socket.receive_text()
+        return parse_ws_response(response)
+
     @staticmethod
-    async def connect(auth: PsyNetConnectionAuthentication) -> PsyNetConnection:
+    async def connect(
+        auth: PsyNetConnectionAuthentication, player_id: str
+    ) -> PsyNetConnection:
         ctx = contextlib.AsyncExitStack()
         client = await ctx.enter_async_context(httpx2.AsyncClient())
         socket = await ctx.enter_async_context(
@@ -143,12 +183,63 @@ class PsyNetConnection:
             )
         )
 
-        return PsyNetConnection(ctx, client, socket)
+        return PsyNetConnection(
+            ctx, client, socket, auth.PsyToken, auth.SessionID, player_id
+        )
 
     @staticmethod
     async def log_in_with_exchange_code(exchange_code: str) -> PsyNetConnection:
+        eos = await EOSPsyNetAuthentication.from_exchange_code(exchange_code)
         return await PsyNetConnection.connect(
-            await PsyNetConnectionAuthentication.from_eos_authentication(
-                await EOSPsyNetAuthentication.from_exchange_code(exchange_code)
-            )
+            await PsyNetConnectionAuthentication.from_eos_authentication(eos),
+            f"Epic|{eos.account_id}|0",
         )
+
+
+def generate_psy_sig(body: str) -> str:
+    PSY_KEY = b"c338bd36fb8c42b1a431d30add939fc7"
+    digest = hmac.new(PSY_KEY, f"-{body}".encode(), hashlib.sha256).digest()
+
+    return base64.b64encode(digest).decode("utf-8")
+
+
+@dataclass
+class PsyNetWsResponse:
+    idem: int
+    body: str
+
+
+def parse_ws_response(response: str) -> PsyNetWsResponse:
+    class PsyNetResponseParseException(Exception): ...
+
+    (headers, body) = response.split("\r\n\r\n")
+    for key, value in (x.split(": ") for x in headers.split("\r\n")):
+        if key == "PsyResponseID":
+            id = value[16:]  # remove the PsyNetMessage_X_
+            return PsyNetWsResponse(int(id), body)
+
+    raise PsyNetResponseParseException(
+        "failed to parse psynet response. response: " + response
+    )
+
+
+class PsyNetProductAttribute(msgspec.Struct):
+    Key: str
+    Value: str | int
+
+
+class PsyNetProduct(msgspec.Struct):
+    ProductID: int
+    InstanceID: str
+    SeriesID: int
+    AddedTimestamp: int
+    UpdatedTimestamp: int
+    Attributes: list[PsyNetProductAttribute]
+
+
+class PsyNetInventory(msgspec.Struct):
+    ProductData: list[PsyNetProduct]
+
+
+class PsyNetInventoryResponse(msgspec.Struct):
+    Result: PsyNetInventory

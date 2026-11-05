@@ -41,7 +41,8 @@ async def main() -> None:
     exchange_code = cmdline.split("-AUTH_PASSWORD=")[1].split(" ")[0]
 
     psynet = await PsyNetConnection.log_in_with_exchange_code(exchange_code)
-    await asyncio.sleep(30)
+    await psynet.inventory()
+    await psynet.close()
 
 
 def _start():
