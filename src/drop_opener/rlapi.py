@@ -57,7 +57,6 @@ class EOSPsyNetAuthentication(msgspec.Struct):
                 },
             )
 
-        print(response.text)
         return msgspec.json.decode(response.text, type=EOSPsyNetAuthentication)
 
 
@@ -106,7 +105,6 @@ class PsyNetConnectionAuthentication(msgspec.Struct):
                 },
             )
 
-        print(response.text)
         return msgspec.json.decode(
             response.text, type=PsyNetConnectionAuthenticationResponse
         ).Result
@@ -142,7 +140,8 @@ class PsyNetConnection:
             ).body,
             type=PsyNetInventoryResponse,
         )
-        print(response.Result)
+
+        return response.Result
 
     async def _send(self, service: str, body: str) -> PsyNetWsResponse:
         headers = {
@@ -158,7 +157,6 @@ class PsyNetConnection:
 
         headers_string = "\r\n".join(f"{k}: {v}" for (k, v) in headers.items())
         message = f"{headers_string}\r\n\r\n{body}"
-        print(message)
         await self._socket.send_text(message)
         self._idem += 1
 

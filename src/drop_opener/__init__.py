@@ -1,4 +1,5 @@
 import asyncio
+import pprint
 import time
 
 import psutil
@@ -40,8 +41,12 @@ async def main() -> None:
     cmdline = " ".join(process.cmdline())
     exchange_code = cmdline.split("-AUTH_PASSWORD=")[1].split(" ")[0]
 
+    print()
     psynet = await PsyNetConnection.log_in_with_exchange_code(exchange_code)
-    await psynet.inventory()
+    print("Logged in to PsyNet.")
+    inventory = await psynet.inventory()
+    pprint.pprint(inventory)
+
     await psynet.close()
 
 
