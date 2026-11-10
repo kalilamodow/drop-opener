@@ -59,7 +59,32 @@ async def main() -> None:
     to_open = filter_openable_drops(inventory.ProductData, product_database)
     print(f"Total {len(to_open)} drops to open.")
 
+    if len(to_open) == 0:
+        print("no drops to open!!!")
+        return
+
+    print()
+    print("About to open drops...")
+    drop_results = await psynet.open_containers([x.InstanceID for x in to_open])
+    print("Results:")
+    for drop in drop_results.Drops:
+        product = product_database[drop.ProductID]
+        print(f" - {product.name} ({fix_quality_name(product.quality)} {product.slot})")
+
     await psynet.close()
+
+
+QUALITY_RENAMES = {
+    "Common": "Base",
+    "Uncommon": "Sport",
+    "Rare": "Special",
+    "Very Rare": "Deluxe",
+    "Limited": "Luxury",
+}
+
+
+def fix_quality_name(original: str) -> str:
+    return QUALITY_RENAMES.get(original) or original
 
 
 def filter_openable_drops(

@@ -144,6 +144,27 @@ class PsyNetConnection:
 
         return response.Result
 
+    async def open_containers(self, instance_ids: list[str]):
+        content = (
+            await self._send(
+                "Products/UnlockContainer v2",
+                json.dumps(
+                    {
+                        "PlayerID": self._player_id,
+                        "InstanceIDs": instance_ids,
+                        "KeyInstanceIDs": [],
+                    }
+                ),
+            )
+        ).body
+        print(content)
+        response = msgspec.json.decode(
+            content,
+            type=PsyNetDropListResponse,
+        )
+
+        return response.Result
+
     async def _send(self, service: str, body: str) -> PsyNetWsResponse:
         headers = {
             "PsyService": service,
@@ -242,3 +263,11 @@ class PsyNetInventory(msgspec.Struct):
 
 class PsyNetInventoryResponse(msgspec.Struct):
     Result: PsyNetInventory
+
+
+class PsyNetDropList(msgspec.Struct):
+    Drops: list[PsyNetProduct]
+
+
+class PsyNetDropListResponse(msgspec.Struct):
+    Result: PsyNetDropList
