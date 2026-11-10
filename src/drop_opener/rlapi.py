@@ -133,7 +133,8 @@ class PsyNetConnection:
                     json.dumps(
                         {
                             "PlayerID": self._player_id,
-                            "UpdatedTimestamp": round(time.time()),
+                            # i still don't understand what this does tbh
+                            "UpdatedTimestamp": 0,
                         }
                     ),
                 )

@@ -4,6 +4,8 @@ import time
 
 import psutil
 
+from drop_opener import products, rlapi
+from drop_opener.products import get_products
 from drop_opener.rlapi import PsyNetConnection
 
 
@@ -44,10 +46,31 @@ async def main() -> None:
     print()
     psynet = await PsyNetConnection.log_in_with_exchange_code(exchange_code)
     print("Logged in to PsyNet.")
+
+    print()
+    print("Fetching products...")
+    product_database = await get_products()
+    print(f"Fetched product database ({len(product_database)} items)")
+
+    print()
+    print("Fetching inventory...")
     inventory = await psynet.inventory()
-    pprint.pprint(inventory)
+    print(f"Fetched inventory ({len(inventory.ProductData)} items)")
+    to_open = filter_openable_drops(inventory.ProductData, product_database)
+    print(f"Total {len(to_open)} drops to open.")
 
     await psynet.close()
+
+
+def filter_openable_drops(
+    inventory: list[rlapi.PsyNetProduct],
+    database: dict[int, products.ProductDefinition],
+) -> list[rlapi.PsyNetProduct]:
+    return [
+        product
+        for product in inventory
+        if database[product.ProductID].slot == "Crate"  # is a drop
+    ]
 
 
 def _start():
