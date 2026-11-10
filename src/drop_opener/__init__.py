@@ -1,5 +1,4 @@
 import asyncio
-import pprint
 import time
 
 import psutil
@@ -62,6 +61,8 @@ async def main() -> None:
     if len(to_open) == 0:
         print("no drops to open!!!")
         return
+
+    input("Press enter to confirm...")
 
     print()
     print("About to open drops...")

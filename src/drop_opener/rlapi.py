@@ -200,6 +200,7 @@ class PsyNetConnection:
                     "PsyBuildID": BUILD_ID,
                     "PsyEnvironment": "Prod",
                 },
+                max_message_size_bytes=8_000_000,
             )
         )
 
