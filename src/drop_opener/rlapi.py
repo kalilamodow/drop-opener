@@ -126,26 +126,37 @@ class PsyNetConnection:
         await self._ctx.aclose()
 
     async def inventory(self):
-        response = msgspec.json.decode(
-            (
-                await self._send(
-                    "Products/GetPlayerProducts v2",
-                    json.dumps(
-                        {
-                            "PlayerID": self._player_id,
-                            # i still don't understand what this does tbh
-                            "UpdatedTimestamp": 0,
-                        }
-                    ),
-                )
-            ).body,
-            type=PsyNetInventoryResponse,
-        )
+        class GetPlayerProductsException(Exception): ...
+
+        raw = (
+            await self._send(
+                "Products/GetPlayerProducts v2",
+                json.dumps(
+                    {
+                        "PlayerID": self._player_id,
+                        # i still don't understand what this does tbh
+                        "UpdatedTimestamp": 0,
+                    }
+                ),
+            )
+        ).body
+
+        try:
+            response = msgspec.json.decode(
+                raw,
+                type=PsyNetInventoryResponse,
+            )
+        except msgspec.DecodeError:
+            raise GetPlayerProductsException(
+                "failed to decode response to GetPlayerProducts. response:" + raw
+            )
 
         return response.Result
 
     async def open_containers(self, instance_ids: list[str]):
-        content = (
+        class OpenContainersException(Exception): ...
+
+        raw = (
             await self._send(
                 "Products/UnlockContainer v2",
                 json.dumps(
@@ -157,10 +168,16 @@ class PsyNetConnection:
                 ),
             )
         ).body
-        response = msgspec.json.decode(
-            content,
-            type=PsyNetDropListResponse,
-        )
+
+        try:
+            response = msgspec.json.decode(
+                raw,
+                type=PsyNetDropListResponse,
+            )
+        except msgspec.DecodeError:
+            raise OpenContainersException(
+                "failed to decode response to Products/UnlockContainer. response:" + raw
+            )
 
         return response.Result
 
