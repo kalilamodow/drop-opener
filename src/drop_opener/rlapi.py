@@ -157,7 +157,6 @@ class PsyNetConnection:
                 ),
             )
         ).body
-        print(content)
         response = msgspec.json.decode(
             content,
             type=PsyNetDropListResponse,
