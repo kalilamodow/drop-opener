@@ -23,3 +23,5 @@ When you launch rocket league, epic passes an authentication token to it to log 
 - The main ui handler and program runner is in `__init__.py`
 - `products.py` has stuff to download/parse the product database from github
 - `rlapi.py` contains logging to psynet and the websocket api
+
+You can run `uv run pyinstaller --onefile src/main.py` to build an executable.
