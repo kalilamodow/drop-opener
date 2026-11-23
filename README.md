@@ -16,6 +16,8 @@ Important: it doesn't work if rocket league is already running. Make sure to ope
 
 When you launch rocket league, epic passes an authentication token to it to log in. But this reads the authentication token from the rocket league arguments and then exits the game before it starts, so the token doesn't get used. Then we can use the authentication token to log in to rocket league ourselves and use the game's api to open all the drops at once.
 
+It uses the [toga-files](https://github.com/shinyemii/toga-files) project for rl build and item information.
+
 ## Contributing
 
 Contributions are welcome in all shapes and forms.
