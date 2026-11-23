@@ -8,18 +8,48 @@ import contextlib
 import hashlib
 import hmac
 import json
-import time
 from dataclasses import dataclass
 
 import httpx2
 import httpx2.websockets
 import msgspec
 
-# build secret can only be retrieved automatically with static analysis which I'm too stupid to do. so I'll try to keep
-# these updated.
-BUILD_ID = "-1885667689"
-FEATURE_SET = "PrimeUpdate60_1"
-BUILD_SECRET = "76656a5b51ec57a13549eef732c8a8367638aa3a7989bade1f7e4e5f93d57625"
+
+@dataclass
+class RLBuildInfo:
+    build_id: str
+    feature_set: str
+    build_secret: str
+
+    @staticmethod
+    async def fetch() -> RLBuildInfo:
+        URL = "https://raw.githubusercontent.com/ShinyEmii/Toga-Files/refs/heads/master/meta.txt"
+        async with httpx2.AsyncClient() as client:
+            response = await client.get(URL)
+
+        parsed = {
+            k: v
+            for (k, v) in (
+                line.split(" : ") for line in response.text.split("\n") if len(line) > 1
+            )
+        }
+
+        return RLBuildInfo(
+            parsed["BuildID"], parsed["FeatureSet"], parsed["BuildSecret"]
+        )
+
+
+_build_info_cache: RLBuildInfo | None = None
+
+
+async def get_build_info() -> RLBuildInfo:
+    global _build_info_cache
+
+    if _build_info_cache is not None:
+        return _build_info_cache
+    _build_info_cache = await RLBuildInfo.fetch()
+    return _build_info_cache
+
 
 RL_EOS_DEPLOYMENT_ID = "da32ae9c12ae40e8a112c52e1f17f3ba"
 RL_EOS_CLIENT_ID = "xyza7891p5D7s9R6Gm6moTHWGloerp7B"
@@ -73,6 +103,7 @@ class PsyNetConnectionAuthentication(msgspec.Struct):
     async def from_eos_authentication(
         eos: EOSPsyNetAuthentication,
     ) -> PsyNetConnectionAuthentication:
+        build_info = await get_build_info()
         data = {
             "Platform": "Epic",
             "PlayerName": "",
@@ -80,7 +111,7 @@ class PsyNetConnectionAuthentication(msgspec.Struct):
             "Language": "INT",
             "AuthTicket": eos.access_token,
             "BuildRegion": "",
-            "FeatureSet": FEATURE_SET,
+            "FeatureSet": build_info.feature_set,
             "Device": "PC",
             "bSkipAuth": False,
             "bSetAsPrimaryAccount": True,
@@ -96,12 +127,12 @@ class PsyNetConnectionAuthentication(msgspec.Struct):
                 content=data,
                 headers={
                     "Content-Type": "application/x-www-form-urlencoded",  # idk either
-                    "PsyBuildID": BUILD_ID,
+                    "PsyBuildID": build_info.build_id,
                     "PsyRequestID": "PsyNetMessage_X_0",
                     "PsySig": generate_psy_sig(data),
                     "PsyEnvironment": "Prod",
                     "User-Agent": "RL Win/260602.75104.519749 gzip (x86_64-pc-win32) curl-7.67.0 Schannel",
-                    "PsyBuildSecret": BUILD_SECRET,
+                    "PsyBuildSecret": build_info.build_secret,
                 },
             )
 
@@ -188,7 +219,7 @@ class PsyNetConnection:
             "PsyToken": self._conn_token,
             "PsySessionID": self._session_id,
             "PsySig": generate_psy_sig(body),
-            "PsyBuildID": BUILD_ID,
+            "PsyBuildID": (await get_build_info()).build_id,
             "User-Agent": "RL Win/250811.43331.492665 gzip",
             "PsyEnvironment": "Prod",
         }
@@ -213,7 +244,7 @@ class PsyNetConnection:
                 headers={
                     "PsyToken": auth.PsyToken,
                     "PsySessionID": auth.SessionID,
-                    "PsyBuildID": BUILD_ID,
+                    "PsyBuildID": (await get_build_info()).build_id,
                     "PsyEnvironment": "Prod",
                 },
                 max_message_size_bytes=8_000_000,
